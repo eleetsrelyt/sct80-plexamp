@@ -4,7 +4,12 @@ import RPi.GPIO as GPIO
 from plexamp_api import get_player_state, play_pause, next_track, previous_track, toggle_star
 from gpio_config import LED_PINS, LED_COMMON, POWER_GPIO
 from led_control import led_boot_sequence, led_on, led_off, all_leds_off
+from plexamp_api import start_radio
 
+def action_random_album_radio():
+    print("Starting Random Album Radio...")
+    start_radio(mode="randomAlbumRadio")
+    
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 

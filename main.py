@@ -4,7 +4,7 @@ import RPi.GPIO as GPIO
 import time
 import signal
 import sys
-from gpio_config import B_PINS, SWITCH_MATRIX, LED_PINS, LED_COMMON
+from gpio_config import B_OUTPUT_PINS, B_INPUT_PINS, SWITCH_MATRIX, LED_PINS, LED_COMMON
 from actions import handle_press
 from led_control import setup_leds, all_leds_off, led_on, led_off, led_boot_sequence
 from button_config import BUTTON_CONFIG
@@ -27,8 +27,13 @@ def set_backlight(on: bool):
 set_backlight(False)  # Ensure off at start
 
 
-# Setup B pins
-for pin in B_PINS.values():
+# Setup matrix output pins (rows)
+for pin in B_OUTPUT_PINS.values():
+    GPIO.setup(pin, GPIO.OUT)
+    GPIO.output(pin, GPIO.HIGH)  # Inactive state
+
+# Setup matrix input pins (columns)
+for pin in B_INPUT_PINS.values():
     GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 
@@ -38,7 +43,7 @@ run_led_polling()
 
 # Switch label by pin pair lookup (reverse mapping)
 PIN_PAIR_TO_SWITCH = {
-    (B_PINS[p1], B_PINS[p2]): sw
+    (B_OUTPUT_PINS[p1], B_INPUT_PINS[p2]): sw
     for sw, (p1, p2) in SWITCH_MATRIX.items()
 }
 
@@ -96,17 +101,12 @@ while True:
         previous_power_state = current_power_state
 
     if current_power_state == GPIO.HIGH:
-        for row_label, row_pin in B_PINS.items():
-            # Set current row to output LOW
-            GPIO.setup(row_pin, GPIO.OUT)
-            GPIO.output(row_pin, GPIO.LOW)
+        for row_label, row_pin in B_OUTPUT_PINS.items():
+            GPIO.output(row_pin, GPIO.LOW)  # Drive active row
 
-            for col_label, col_pin in B_PINS.items():
+            for col_label, col_pin in B_INPUT_PINS.items():
                 if row_pin == col_pin:
                     continue  # Skip same pin
-
-                # Set current column to input with pull-up
-                GPIO.setup(col_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
                 if GPIO.input(col_pin) == GPIO.LOW:
                     key = (row_pin, col_pin)
@@ -125,7 +125,6 @@ while True:
                     if sw in pressed_cache:
                         pressed_cache.remove(sw)
 
-            # Reset row to input with pull-up
-            GPIO.setup(row_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.output(row_pin, GPIO.HIGH)  # Deactivate row
 
     time.sleep(0.05)

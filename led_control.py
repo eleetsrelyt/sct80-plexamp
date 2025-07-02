@@ -67,3 +67,12 @@ def led_toggle(label):
         GPIO.output(pin, GPIO.LOW if current_state else GPIO.HIGH)
     else:
         GPIO.output(pin, GPIO.HIGH if current_state == GPIO.LOW else GPIO.LOW)
+
+def blink_D418_D419():
+    leds = ["D418", "D419"]
+    for _ in range(10):  # Blink a few times
+        led = random.choice(leds)
+        led_on(led)
+        time.sleep(random.uniform(0.05, 0.2))
+        led_off(led)
+        time.sleep(random.uniform(0.05, 0.15))

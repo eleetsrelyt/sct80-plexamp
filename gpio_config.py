@@ -1,10 +1,15 @@
 # gpio_config.py
 
 # GPIO pin mapping for B wires (used in switch matrix)
-B_PINS = {
+# Row pins (outputs)
+B_OUTPUT_PINS = {
     "B1": 5,
     "B2": 6,
-    "B3": 12,
+    "B3": 12
+}
+
+# Column pins (inputs)
+B_INPUT_PINS = {
     "B4": 9,
     "B5": 16,
     "B6": 20,

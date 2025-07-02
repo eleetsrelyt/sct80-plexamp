@@ -76,7 +76,7 @@ BUTTON_CONFIG = {
         "row": 6,
         "col": 21,  # B7
         "led": None,
-        "action": "shuffle_random_playlist",
+        "action": "random_album_radio",
         "led_mode": "blink_D418_D419",
         "sanity_check": "all_leds_test"
     },
@@ -84,9 +84,8 @@ BUTTON_CONFIG = {
         "label": "Reverse",
         "row": 5,   # B1
         "col": 9,   # B4
-        "led": "D420",
-        "action": "shuffle_playlist_aria",
-        "led_mode": "r2d2_blink",
+        "led": None,
+        "led_mode": None,
         "sanity_check": "all_leds_test"
     },
     "SW13": {

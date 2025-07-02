@@ -131,3 +131,17 @@ def previous_track():
 
 def toggle_star():
     star()
+
+def start_radio(mode="randomAlbumRadio"):
+    """Start a Plexamp radio session using the given mode."""
+    url = f"{BASE_URL}/player/playRadio"
+    payload = {
+        "machineIdentifier": PLAYER_ID,
+        "radioType": mode
+    }
+    try:
+        response = requests.post(url, headers=HEADERS, json=payload)
+        response.raise_for_status()
+        print(f"[start_radio] Started radio with mode: {mode}")
+    except requests.RequestException as e:
+        print(f"[start_radio] API error: {e}")
