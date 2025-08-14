@@ -15,6 +15,29 @@ HEADERS = {
     "X-Plex-Token": TOKEN
 }
 
+
+# --- Helper: Poll local Plexamp timeline endpoint and return XML root ---
+def poll_local_timeline(include_metadata: bool = True, wait: int = 0, media_type: str = "music"):
+    """Poll Plexamp's local timeline endpoint and return parsed XML.
+    Defaults to include metadata and no long-poll wait for snappy LED/state updates.
+    """
+    url = f"{BASE_URL}/player/timeline/poll"
+    params = {
+        "wait": str(wait),
+        "includeMetadata": "1" if include_metadata else "0",
+        "commandID": "1",
+        "type": media_type,
+    }
+    try:
+        response = requests.get(url, headers=HEADERS, params=params, timeout=5)
+        response.raise_for_status()
+        return ET.fromstring(response.content)
+    except requests.RequestException as e:
+        print(f"[poll_local_timeline] HTTP error: {e}")
+    except ET.ParseError as e:
+        print(f"[poll_local_timeline] XML parse error: {e}")
+    return None
+
 def play_pause():
     url = f"{BASE_URL}/player/playback/playPause?machineIdentifier={PLAYER_ID}"
     try:
@@ -40,88 +63,67 @@ def previous():
         print(f"previous error: {e}")
 
 def star():
-    """Send a 1-star rating to the currently playing track using the PMS API."""
-    url = f"{PMS_URL}/status/sessions"
+    """Send a 1-star rating to the currently playing item.
+    We read ratingKey from LOCAL Plexamp timeline metadata, then call PMS once to rate.
+    """
+    root = poll_local_timeline(include_metadata=True)
+    if root is None:
+        print("[star] No timeline data available.")
+        return
+    # Try to find metadata for the current item; the container may nest <Timeline> and <Metadata>
+    rating_key = None
+    # Common layouts: <MediaContainer><Metadata ... ratingKey="..." /></MediaContainer>
+    meta = root.find("Metadata")
+    if meta is not None:
+        rating_key = meta.get("ratingKey")
+    if rating_key is None:
+        # Some builds put Metadata under a second level
+        for elem in root.iter("Metadata"):
+            rk = elem.get("ratingKey")
+            if rk:
+                rating_key = rk
+                break
+    if not rating_key:
+        print("[star] Could not find ratingKey in local metadata.")
+        return
+    # Rate via PMS
     try:
-        response = requests.get(url, headers=HEADERS)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-        for track in root.findall("Track"):
-            player = track.find("Player")
-            if player is not None and (
-                player.get("machineIdentifier") == PLAYER_ID or
-                player.get("title") == PLAYER_ID
-            ):
-                rating_key = track.get("ratingKey")
-                if rating_key:
-                    rate_url = f"{PMS_URL}/:/rate?key={rating_key}&rating=10"
-                    rate_response = requests.put(rate_url, headers=HEADERS)
-                    rate_response.raise_for_status()
-                    print(f"[star] Rated item {rating_key} with 1 star.")
-                return
-        print("[star] No active track found to rate.")
+        rate_url = f"{PMS_URL}/:/rate?key={rating_key}&rating=10"
+        rate_response = requests.put(rate_url, headers=HEADERS, timeout=5)
+        rate_response.raise_for_status()
+        print(f"[star] Rated item {rating_key} with 1 star.")
     except requests.RequestException as e:
-        print(f"[star] API error: {e}")
-    except ET.ParseError as e:
-        print(f"[star] XML parse error: {e}")
+        print(f"[star] PMS rate error: {e}")
 
 def set_repeat(repeat_mode='repeat'):
     print("Repeat toggle not available in local API")
 
 def get_status():
-    url = f"{PMS_URL}/status/sessions"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-        for track in root.findall("Track"):
-            player = track.find("Player")
-            if player is not None and (
-                player.get("machineIdentifier") == PLAYER_ID or
-                player.get("title") == PLAYER_ID
-            ):
-                return player.get("state")
-    except requests.RequestException as e:
-        print(f"get_status error: {e}")
-    except ET.ParseError as e:
-        print(f"XML parse error: {e}")
+    """Return player state (e.g., 'playing', 'paused', 'stopped') from LOCAL Plexamp timeline."""
+    root = poll_local_timeline(include_metadata=False)
+    if root is None:
+        return None
+    # Expected structure: <MediaContainer> <Timeline state="playing" ... />
+    timeline = root.find("Timeline")
+    if timeline is not None:
+        return timeline.get("state")
     return None
 
-
-# --- Additional functions for full session status and player polling ---
 
 def get_all_players():
-    """Returns a list of all active players with their titles and states."""
-    url = f"{PMS_URL}/status/sessions"
-    try:
-        response = requests.get(url, headers=HEADERS)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-        players = []
-        for track in root.findall("Track"):
-            player = track.find("Player")
-            if player is not None:
-                players.append({
-                    "title": player.get("title"),
-                    "machineIdentifier": player.get("machineIdentifier"),
-                    "state": player.get("state")
-                })
-        return players
-    except requests.RequestException as e:
-        print(f"get_all_players error: {e}")
-    except ET.ParseError as e:
-        print(f"XML parse error: {e}")
-    return []
-
+    """Return a single local player entry derived from the local timeline.
+    The Plexamp local API doesn't enumerate *all* players; this returns just the current one.
+    """
+    state = get_status()
+    return [{
+        "title": PLAYER_ID,
+        "machineIdentifier": PLAYER_ID,
+        "state": state
+    }]
 
 def get_player_state(player_title=None):
-    """Returns state of a specific player, defaults to PLAYER_ID."""
-    player_title = player_title or PLAYER_ID
-    players = get_all_players()
-    for player in players:
-        if player["title"] == player_title or player["machineIdentifier"] == player_title:
-            return player["state"]
-    return None
+    """Return state of the local Plexamp player using the local timeline poll."""
+    return get_status()
 
 def next_track():
     skip()

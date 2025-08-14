@@ -1,7 +1,7 @@
 import time
 import threading
 import RPi.GPIO as GPIO
-from plexamp_api import get_player_state, play_pause, next_track, previous_track, toggle_star
+from plexamp_api import get_player_state, play_pause, next_track, previous_track, toggle_star, set_repeat
 from gpio_config import LED_PINS, LED_COMMON, POWER_GPIO
 from led_control import led_boot_sequence, led_on, led_off, all_leds_off
 from plexamp_api import start_radio
@@ -9,6 +9,18 @@ from plexamp_api import start_radio
 def action_random_album_radio():
     print("Starting Random Album Radio...")
     start_radio(mode="randomAlbumRadio")
+
+# Toggle HDMI backlight relay using configured GPIO pin
+# Relies on POWER_GPIO["RELAY_CONTROL"] from gpio_config
+
+def toggle_hdmi_backlight():
+    try:
+        GPIO.setup(POWER_GPIO["RELAY_CONTROL"], GPIO.OUT)
+        current = GPIO.input(POWER_GPIO["RELAY_CONTROL"]) if GPIO.gpio_function(POWER_GPIO["RELAY_CONTROL"]) == GPIO.OUT else GPIO.LOW
+        GPIO.output(POWER_GPIO["RELAY_CONTROL"], GPIO.LOW if current == GPIO.HIGH else GPIO.HIGH)
+        print(f"[backlight] Toggled to: {'ON' if current == GPIO.LOW else 'OFF'}")
+    except Exception as e:
+        print(f"[backlight] Toggle error: {e}")
     
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
@@ -93,5 +105,15 @@ def handle_press(button):
             previous_track()
         case "star":
             toggle_star()
+        case "random_album_radio":
+            action_random_album_radio()
+        case "toggle_repeat":
+            # Plexamp local API doesn't expose repeat control; keep as placeholder
+            set_repeat()
+        case "shuffle":
+            # Shuffle not implemented against local API; placeholder for future
+            print("[info] Shuffle toggle not implemented yet.")
+        case "toggle_hdmi_backlight":
+            toggle_hdmi_backlight()
         case _:
             print(f"[warn] Unknown action: {button['action']}")
